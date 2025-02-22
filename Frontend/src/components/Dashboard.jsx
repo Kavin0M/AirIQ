@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { fetchSensorData } from "../api";
 import { 
   Activity, 
   Thermometer, 
@@ -15,9 +14,9 @@ import {
 const getQualityColor = (value, type) => {
   switch(type) {
     case 'temperature':
-      if (value < 18) return { text: 'text-[#007BFF]', bg: 'bg-[#007BFF]' };
-      if (value < 25) return { text: 'text-green-500', bg: 'bg-green-500' };
-      if (value < 30) return { text: 'text-yellow-500', bg: 'bg-yellow-500' };
+      if (value < 22) return { text: 'text-[#007BFF]', bg: 'bg-[#007BFF]' };
+      if (value < 30) return { text: 'text-green-500', bg: 'bg-green-500' };
+      if (value < 40) return { text: 'text-yellow-500', bg: 'bg-yellow-500' };
       return { text: 'text-red-500', bg: 'bg-red-500' };
     case 'humidity':
       if (value < 30) return { text: 'text-red-500', bg: 'bg-red-500' };
@@ -91,7 +90,7 @@ const DeviceCard = ({ device, isSelected, onSelect }) => {
         </div>
         <div className="text-center">
           <div className="text-sm text-gray-500">CO2</div>
-          <div className="font-semibold">{lastReading.co2_ppm} PPM</div>
+          <div className="font-semibold">{lastReading.co2_ppm.toFixed(0)} PPM</div>
         </div>
       </div>
     </div>
@@ -234,33 +233,93 @@ const Dashboard = () => {
 
 
   useEffect(() => {
-    const fetchData = async () => {
+    setIsLoading(true);
+    const eventSource = new EventSource("http://localhost:8000/realtime-sensor-data/");
+  
+    eventSource.onopen = () => {
+      setConnectionStatus('connected');
+      setIsLoading(false);
+      setError(null);
+    };
+  
+    eventSource.onmessage = (event) => {
       try {
-        setIsLoading(true);
-        setError(null);
-        const response = await fetchSensorData();
-        
-        if (response && response.latest_data) {
-          updateFirstDevice(response.latest_data);
-        } else {
-          throw new Error('Invalid data format received from API');
+        const newData = JSON.parse(event.data);
+        console.log(newData);
+        if (!newData || !newData.latest_data) {
+          throw new Error('Invalid data format received');
         }
+  
+        // Get the first sensor ID (assuming there's only one sensor for now)
+        const sensorId = Object.keys(newData.latest_data)[0]; // e.g., "AIQ_A3F4C8"
+        const sensorData = newData.latest_data[sensorId];
+  
+        if (!sensorData) {
+          throw new Error('No sensor data available');
+        }
+  
+        // Update the first device with new data
+        setDevices(prevDevices => [
+          {
+            ...prevDevices[0],
+            latestData: {
+              temperature: Number(sensorData.temperature) || prevDevices[0].latestData.temperature,
+              humidity: Number(sensorData.humidity) || prevDevices[0].latestData.humidity,
+              co2_ppm: Number(sensorData.co2_ppm)*0.1 || prevDevices[0].latestData.co2_ppm,
+              no2_ppm: Number(sensorData.no2_ppm) || prevDevices[0].latestData.no2_ppm,
+              benzene_ppm: Number(sensorData.benzene_ppm) || prevDevices[0].latestData.benzene_ppm,
+              pressure: Number(sensorData.pressure) || prevDevices[0].latestData.pressure,
+              // Add new fields
+              alcohol_ppm: Number(sensorData.alcohol_ppm) || 0,
+              nh3_ppm: Number(sensorData.nh3_ppm) || 0,
+              timestamp: sensorData.timestamp,
+              uid: sensorId
+            }
+          },
+          ...prevDevices.slice(1)
+        ]);
+  
+        // Update selected device if it's the first device
+        setSelectedDevice(prevSelected => {
+          if (prevSelected?.id === 1) {
+            return {
+              ...prevSelected,
+              latestData: {
+                temperature: Number(sensorData.temperature) || prevSelected.latestData.temperature,
+                humidity: Number(sensorData.humidity) || prevSelected.latestData.humidity,
+                co2_ppm: Number(sensorData.co2_ppm)*0.1 || prevSelected.latestData.co2_ppm,
+                no2_ppm: Number(sensorData.no2_ppm) || prevSelected.latestData.no2_ppm,
+                benzene_ppm: Number(sensorData.benzene_ppm) || prevSelected.latestData.benzene_ppm,
+                pressure: Number(sensorData.pressure) || prevSelected.latestData.pressure,
+                // Add new fields
+                alcohol_ppm: Number(sensorData.alcohol_ppm) || 0,
+                nh3_ppm: Number(sensorData.nh3_ppm) || 0,
+                timestamp: sensorData.timestamp,
+                uid: sensorId
+              }
+            };
+          }
+          return prevSelected;
+        });
+  
+        setLastUpdate(new Date(sensorData.timestamp));
+        setError(null);
       } catch (err) {
-        setError('Failed to fetch sensor data: ' + err.message);
-        console.error('Error fetching sensor data:', err);
-      } finally {
-        setIsLoading(false);
+        console.error('Error processing sensor data:', err);
+        setError('Error processing sensor data: ' + err.message);
       }
     };
-
-    // Initial fetch
-    fetchData();
-
-    // Set up polling every 30 seconds
-    const interval = setInterval(fetchData, 30000);
-
-    // Cleanup
-    return () => clearInterval(interval);
+  
+    eventSource.onerror = (err) => {
+      console.error('EventSource error:', err);
+      setConnectionStatus('disconnected');
+      setError('Connection error. Attempting to reconnect...');
+      setIsLoading(true);
+    };
+  
+    return () => {
+      eventSource.close();
+    };
   }, []);
 
   // Add loading and error indicators
@@ -365,7 +424,7 @@ const Dashboard = () => {
                   <h3 className="text-lg font-semibold">NO2 Levels</h3>
                 </div>
                 <div className="text-3xl font-bold mb-2">
-                  {selectedDevice.latestData.no2_ppm.toFixed(2)} <span className="text-sm text-gray-500">PPM</span>
+                  {selectedDevice.latestData.no2_ppm.toFixed(3)} <span className="text-sm text-gray-500">PPM</span>
                 </div>
               </div>
 
@@ -375,7 +434,7 @@ const Dashboard = () => {
                   <h3 className="text-lg font-semibold">Benzene</h3>
                 </div>
                 <div className="text-3xl font-bold mb-2">
-                  {selectedDevice.latestData.benzene_ppm.toFixed(2)} <span className="text-sm text-gray-500">PPM</span>
+                  {selectedDevice.latestData.benzene_ppm.toFixed(3)} <span className="text-sm text-gray-500">PPM</span>
                 </div>
               </div>
 

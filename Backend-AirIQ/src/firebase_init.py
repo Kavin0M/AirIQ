@@ -2,7 +2,7 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 # Load Firebase credentials (Download from Firebase Console)
-cred = credentials.Certificate("/Users/sabarinarayana/Developer/AirIQ/firebase-adminsdk-fbsvc.json")
+cred = credentials.Certificate("/Users/sabarinarayana/Developer/AirIQ/airiq-7c670-firebase-adminsdk-fbsvc-9a45c4a70d.json")
 
 # Initialize Firebase app only if it's not already initialized
 if not firebase_admin._apps:
