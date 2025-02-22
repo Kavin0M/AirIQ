@@ -142,8 +142,8 @@ void loop()
 
         // Prepare JSON data for Firebase
         FirebaseJson json;
-        json.set("uid", "000001")
-        json.set("timestamp", timestamp);
+        json.set("uid", "AIQ#A3F4C8")
+            json.set("timestamp", timestamp);
         json.set("co2_ppm", co2_ppm);
         json.set("nh3_ppm", nh3_ppm);
         json.set("alcohol_ppm", alcohol_ppm);
