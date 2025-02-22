@@ -25,6 +25,9 @@ FirebaseConfig config;
 unsigned long sendDataPrevMillis = 0;
 bool signupOK = false;
 
+// Unique UID for sensor
+const char *uid = "AIQ_A3F4C8";  // Replace # with _
+
 // Sensor initialization
 MQ135 mq135_sensor(MQ135_PIN);
 Adafruit_BME280 bme;
@@ -142,8 +145,7 @@ void loop()
 
         // Prepare JSON data for Firebase
         FirebaseJson json;
-        json.set("uid", "AIQ#A3F4C8")
-            json.set("timestamp", timestamp);
+        json.set("timestamp", timestamp);
         json.set("co2_ppm", co2_ppm);
         json.set("nh3_ppm", nh3_ppm);
         json.set("alcohol_ppm", alcohol_ppm);
@@ -153,8 +155,9 @@ void loop()
         json.set("pressure", pressure);
         json.set("humidity", humidity);
 
-        // Send data to Firebase
-        if (Firebase.RTDB.setJSON(&fbdo, "/sensorData", &json))
+        // Send data to Firebase under UID subtopic
+        String path = "/sensorData/" + String(uid);
+        if (Firebase.RTDB.setJSON(&fbdo, path.c_str(), &json))
         {
             Serial.println("Data sent to Firebase successfully");
         }
